@@ -27,6 +27,10 @@ A cross-sectional, quant-style view of the whole group:
 - **Risk & return** — annualized volatility, **beta vs QQQ**, **max drawdown**, and **Sharpe** (rf 4.5%), sorted by Sharpe.
 - **Return correlation matrix** — 1-year daily-return correlations across all nine.
 - **Valuation vs growth (GARP map)** — forward P/E vs revenue growth, bubble size = market cap, with peer-median crosshairs.
+- **Risk vs return map** — annualized volatility vs 1-year return, bubble = market cap, with the QQQ/SPY benchmarks, the equal-weight portfolio, and a capital market line.
+- **Underwater drawdowns** — each name's decline from its running peak over the year, with the equal-weight portfolio overlaid.
+- **Equal-weight portfolio** — a 1/9-each basket that shows the diversification benefit (volatility well below the average single name), with return, Sharpe, Sortino, beta and max drawdown.
+- **Advanced risk statistics** — Sortino & Calmar ratios, 1-day 95% Value-at-Risk, return skew, % positive days, and up/down capture vs QQQ.
 
 ## Advanced charting
 
@@ -86,12 +90,12 @@ python3 -m http.server 8000   # then open http://localhost:8000
 
 ## Deploy (GitHub Pages)
 
-Push to the root of a public repo, then **Settings → Pages → Deploy from a branch → `main` / `root`**. Publishes at `https://<user>.github.io/<repo>/`.
+Push to the root of a public repo, then **Settings -> Pages -> Deploy from a branch -> `main` / `root`**. Publishes at `https://<user>.github.io/<repo>/`.
 
 ## Disclaimer
 
-For informational and educational purposes only. **This is not investment advice**, and nothing here is a recommendation to buy or sell any security. Market data may be delayed or, when the live feed is unavailable, reflect the labeled snapshot date. Analyst targets are third-party estimates; technical signals and trend projections are mechanical and illustrative. Always do your own research.
+For informational and educational purposes only. **This is not investment advice**, and nothing here is a recommendation to buy or sell any security. Market data may be delayed or, when the live feed is unavailable, reflect the labeled snapshot date. Analyst targets are third-party estimates; technical signals, trend projections, portfolio figures and risk statistics are mechanical and illustrative. Always do your own research.
 
 ## License
 
-[MIT](LICENSE) © 2026 Daniel Duong
+[MIT](LICENSE) (c) 2026 Daniel Duong

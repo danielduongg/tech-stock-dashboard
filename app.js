@@ -787,8 +787,12 @@ function renderAnalytics() {
     <div class="panel wide"><div class="panel-head">Relative performance <span style="font-weight:500;color:var(--text-faint);font-size:12px">${A.period}, rebased to 100, log scale</span></div><div class="panel-sub">9 names vs Nasdaq-100 (QQQ) &amp; S&amp;P 500 (SPY) &middot; click a legend chip to toggle a line</div><svg id="cmp-chart" class="cmp-chart" preserveAspectRatio="none"></svg><div class="cmp-legend">${legend}</div></div>
     <div class="panel"><div class="panel-head">Risk &amp; return <span style="font-weight:500;color:var(--text-faint);font-size:12px">1Y, sorted by Sharpe</span></div><div class="panel-sub">Annualized vol &middot; beta vs QQQ &middot; max drawdown &middot; Sharpe (rf ${A.rf}%)</div>${risk}</div>
     <div class="panel"><div class="panel-head">Return correlation</div><div class="panel-sub">How closely daily moves track each other (1 = identical)</div>${corr}</div>
-    <div class="panel wide"><div class="panel-head">Valuation vs growth <span style="font-weight:500;color:var(--text-faint);font-size:12px">GARP map</span></div><div class="panel-sub">Forward P/E (x) vs revenue growth (y) &middot; bubble = market cap &middot; lower-right = cheaper &amp; faster-growing. Dashed lines = peer medians.</div><svg id="scatter" class="scatter" preserveAspectRatio="none"></svg></div>`;
-  drawComparison(); drawScatter();
+    <div class="panel wide"><div class="panel-head">Valuation vs growth <span style="font-weight:500;color:var(--text-faint);font-size:12px">GARP map</span></div><div class="panel-sub">Forward P/E (x) vs revenue growth (y) &middot; bubble = market cap &middot; lower-right = cheaper &amp; faster-growing. Dashed lines = peer medians.</div><svg id="scatter" class="scatter" preserveAspectRatio="none"></svg></div>
+    <div class="panel"><div class="panel-head">Risk vs return <span style="font-weight:500;color:var(--text-faint);font-size:12px">1Y</span></div><div class="panel-sub">Annualized volatility (x) vs return (y) &middot; bubble = market cap &middot; &#9733; equal-weight portfolio &middot; &#9670; benchmarks &middot; dashed = capital market line</div><svg id="rr-scatter" class="scatter" preserveAspectRatio="none"></svg></div>
+    <div class="panel"><div class="panel-head">Drawdowns <span style="font-weight:500;color:var(--text-faint);font-size:12px">underwater, 1Y</span></div><div class="panel-sub">Decline from each name&rsquo;s running peak &middot; equal-weight portfolio in white</div><svg id="dd-chart" class="cmp-chart" preserveAspectRatio="none"></svg></div>
+    <div class="panel wide"><div class="panel-head">Equal-weight portfolio <span style="font-weight:500;color:var(--text-faint);font-size:12px">diversification</span></div><div class="panel-sub">A simple 1/9-each basket of these names vs holding any one alone</div><div id="port-panel"></div></div>
+    <div class="panel wide"><div class="panel-head">Advanced risk statistics</div><div class="panel-sub">Downside &amp; tail risk &middot; Sortino, Calmar, 1-day 95% VaR, return skew, % positive days, and up/down capture vs QQQ</div><div id="adv-table"></div></div>`;
+  drawComparison(); drawScatter(); drawRiskReturn(); drawDrawdown(); fillPortPanel(); renderAdvTable();
 }
 
 function drawComparison() {
@@ -838,6 +842,76 @@ function drawScatter() {
   svg.innerHTML = grid + bubbles;
 }
 
+/* ---- Risk vs return scatter ---- */
+function drawRiskReturn() {
+  const A = window.SNAPSHOT.analytics, svg = document.getElementById("rr-scatter"); if (!svg) return;
+  const W = 1000, H = 360, padL = 52, padR = 16, padT = 16, padB = 42;
+  const pts = window.SNAPSHOT.order.map((s) => ({ sym: s, vol: A.risk[s].vol, ret: A.risk[s].ret1y, mc: state.stocks.find((x) => x.sym === s).mc }));
+  const bx = [...pts.map((p) => p.vol), A.benchRisk.QQQ.vol, A.benchRisk.SPY.vol, A.port.vol];
+  const by = [...pts.map((p) => p.ret), A.benchRisk.QQQ.ret1y, A.benchRisk.SPY.ret1y, A.port.ret1y];
+  const xlo = 0, xhi = Math.max(...bx) * 1.08, ylo = Math.min(0, Math.min(...by)) - 6, yhi = Math.max(...by) * 1.12;
+  const x = (v) => padL + (v - xlo) / ((xhi - xlo) || 1) * (W - padL - padR);
+  const y = (v) => padT + (1 - (v - ylo) / ((yhi - ylo) || 1)) * (H - padT - padB);
+  const mcMax = Math.max(...pts.map((p) => p.mc)), r = (mc) => 9 + Math.sqrt(mc / mcMax) * 30;
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  for (let g = 0; g <= 4; g++) { const gv = xlo + (g / 4) * (xhi - xlo), gx = x(gv); grid += `<line x1="${gx.toFixed(1)}" y1="${padT}" x2="${gx.toFixed(1)}" y2="${H - padB}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${gx.toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  for (let g = 0; g <= 4; g++) { const gv = ylo + (g / 4) * (yhi - ylo), gy = y(gv); grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${padL - 6}" y="${(gy + 4).toFixed(1)}" text-anchor="end" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  const rf = A.rf || 4.5, sl = (A.benchRisk.QQQ.ret1y - rf) / A.benchRisk.QQQ.vol;
+  grid += `<line x1="${x(0).toFixed(1)}" y1="${y(rf).toFixed(1)}" x2="${x(xhi).toFixed(1)}" y2="${y(rf + sl * xhi).toFixed(1)}" style="stroke:var(--accent)" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.6" vector-effect="non-scaling-stroke"/>`;
+  grid += `<text x="${((padL + W - padR) / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle" ${LBL}>Annualized volatility &rarr;</text>`;
+  let b = "";
+  for (const p of pts) { const col = BRAND[p.sym], cx = x(p.vol), cy = y(p.ret), rr = r(p.mc); b += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" opacity="0.26"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${col}"/><text x="${cx.toFixed(1)}" y="${(cy - rr - 4).toFixed(1)}" text-anchor="middle" font-size="11.5" font-weight="700" style="fill:var(--text)" font-family="'JetBrains Mono',monospace">${p.sym}</text>`; }
+  const mark = (vol, ret, label, glyph, col, size) => { const cx = x(vol), cy = y(ret); return `<text x="${cx.toFixed(1)}" y="${(cy + size / 3).toFixed(1)}" text-anchor="middle" font-size="${size}" fill="${col}">${glyph}</text><text x="${cx.toFixed(1)}" y="${(cy - 13).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" style="fill:var(--text-dim)" font-family="'JetBrains Mono',monospace">${label}</text>`; };
+  b += mark(A.benchRisk.QQQ.vol, A.benchRisk.QQQ.ret1y, "QQQ", "&#9670;", "#8a93a6", 16);
+  b += mark(A.benchRisk.SPY.vol, A.benchRisk.SPY.ret1y, "SPY", "&#9670;", "#aeb6c6", 16);
+  b += mark(A.port.vol, A.port.ret1y, "PORT", "&#9733;", "#ffffff", 22);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = grid + b;
+}
+
+/* ---- Underwater (drawdown) chart ---- */
+function drawDrawdown() {
+  const A = window.SNAPSHOT.analytics, svg = document.getElementById("dd-chart"); if (!svg) return;
+  const W = 1000, H = 320, padL = 8, padR = 50, padT = 12, padB = 24, order = window.SNAPSHOT.order;
+  const ddOf = (arr) => { let pk = -Infinity; return arr.map((v) => { if (v > pk) pk = v; return (v / pk - 1) * 100; }); };
+  const series = {}; let lo = 0;
+  for (const s of order) { series[s] = ddOf(A.rebased[s]); lo = Math.min(lo, ...series[s]); }
+  const portDD = ddOf(A.port.reb); lo = Math.min(lo, ...portDD);
+  const n = A.dates.length;
+  const x = (i) => padL + i / (n - 1) * (W - padL - padR);
+  const y = (v) => padT + (1 - (v - lo) / ((0 - lo) || 1)) * (H - padT - padB);
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  for (let g = 0; g <= 4; g++) { const gv = lo + (g / 4) * (0 - lo), gy = y(gv); grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${W - padR + 4}" y="${(gy + 4).toFixed(1)}" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  let lines = "";
+  for (const s of order) { const col = BRAND[s]; let pts = ""; series[s].forEach((v, i) => pts += `${x(i).toFixed(1)},${y(v).toFixed(1)} `); lines += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1" opacity="0.55" vector-effect="non-scaling-stroke"/>`; }
+  let pp = ""; portDD.forEach((v, i) => pp += `${x(i).toFixed(1)},${y(v).toFixed(1)} `);
+  lines += `<polyline points="${pp}" fill="none" stroke="#ffffff" stroke-width="2.2" vector-effect="non-scaling-stroke"/><text x="${(x(n - 1) - 2).toFixed(1)}" y="${(y(portDD[n - 1]) - 5).toFixed(1)}" text-anchor="end" font-size="11" fill="#fff" font-family="'JetBrains Mono',monospace">PORT</text>`;
+  let xlab = ""; [0, Math.floor((n - 1) / 2), n - 1].forEach((i, k) => { const anc = k === 0 ? "start" : k === 2 ? "end" : "middle"; xlab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anc}" ${LBL}>${fmtShortDate(A.dates[i])}</text>`; });
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.innerHTML = grid + lines + xlab;
+}
+
+
+/* ---- Advanced risk statistics table ---- */
+function renderAdvTable() {
+  const A = window.SNAPSHOT.analytics, host = document.getElementById("adv-table"); if (!host) return;
+  const order = window.SNAPSHOT.order;
+  const rows = order.map((s) => { const a = A.adv[s];
+    return `<tr><td>${s}</td><td class="${a.sortino >= 0 ? "t-up" : "t-down"}">${a.sortino.toFixed(2)}</td><td class="${a.calmar >= 0 ? "t-up" : "t-down"}">${a.calmar.toFixed(2)}</td><td class="t-down">${a.var95.toFixed(1)}%</td><td>${a.skew.toFixed(2)}</td><td>${a.pos}%</td><td class="${a.up >= 100 ? "t-up" : ""}">${a.up}%</td><td class="${a.down > 100 ? "t-down" : ""}">${a.down}%</td></tr>`; }).join("");
+  host.innerHTML = `<table class="fin-table"><thead><tr><th>Ticker</th><th>Sortino</th><th>Calmar</th><th>VaR 95%</th><th>Skew</th><th>% Pos</th><th>Up capt.</th><th>Down capt.</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* ---- Equal-weight portfolio panel ---- */
+function fillPortPanel() {
+  const A = window.SNAPSHOT.analytics, host = document.getElementById("port-panel"); if (!host) return;
+  const p = A.port;
+  const cells = [["1Y Return", fmtPctS(p.ret1y), p.ret1y >= 0 ? "good" : "bad"], ["Volatility", p.vol.toFixed(1) + "%", "", "vs " + p.avgStockVol.toFixed(1) + "% avg single name"], ["Sharpe", p.sharpe.toFixed(2), p.sharpe >= 1 ? "good" : ""], ["Sortino", p.sortino.toFixed(2), p.sortino >= 1 ? "good" : ""], ["Max Drawdown", p.mdd.toFixed(1) + "%", "bad"], ["Beta vs QQQ", p.beta.toFixed(2), ""], ["Corr vs QQQ", p.corrQQQ.toFixed(2), ""]];
+  const grid = `<div class="metric-grid">${cells.map((c) => metric(c[0], c[1], c[2], c[3])).join("")}</div>`;
+  const div = Math.round((1 - p.vol / p.avgStockVol) * 100);
+  const note = `<div class="disclaimer" style="background:var(--green-soft);border-color:rgba(22,199,132,0.25);color:var(--text-dim);margin-top:12px"><strong style="color:var(--green)">Diversification at work:</strong> spreading equally across the nine cuts annualized volatility from ~${p.avgStockVol.toFixed(0)}% (average single name) to ${p.vol.toFixed(1)}% &mdash; about ${div}% lower &mdash; because the names aren&rsquo;t perfectly correlated, while still capturing a ${fmtPctS(p.ret1y)} return. Not advice.</div>`;
+  host.innerHTML = grid + note;
+}
+
 function switchView(v) {
   state.view = v;
   ["cards", "table", "analytics"].forEach((k) => document.getElementById("view-" + k).classList.toggle("active", v === k));
@@ -857,7 +931,7 @@ function boot() {
   state.stocks = buildStocks(window.SNAPSHOT);
   state.asOfLabel = window.SNAPSHOT.asOfLabel; state.fundAsOf = window.SNAPSHOT.fundamentalsAsOf;
   wire(); render();
-  setStatus("snapshot", "Snapshot · " + state.asOfLabel, "Baked snapshot from " + state.asOfLabel + ". Attempting live refresh…");
+  setStatus("snapshot", "Snapshot · " + state.asOfLabel, "Baked snapshot from " + state.asOfLabel + ". Attempting live refresh.");
   setFooter();
   setTimeout(refreshLive, 400);
 }
