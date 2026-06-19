@@ -791,8 +791,10 @@ function renderAnalytics() {
     <div class="panel"><div class="panel-head">Risk vs return <span style="font-weight:500;color:var(--text-faint);font-size:12px">1Y</span></div><div class="panel-sub">Annualized volatility (x) vs return (y) &middot; bubble = market cap &middot; &#9733; equal-weight portfolio &middot; &#9670; benchmarks &middot; dashed = capital market line</div><svg id="rr-scatter" class="scatter" preserveAspectRatio="none"></svg></div>
     <div class="panel"><div class="panel-head">Drawdowns <span style="font-weight:500;color:var(--text-faint);font-size:12px">underwater, 1Y</span></div><div class="panel-sub">Decline from each name&rsquo;s running peak &middot; equal-weight portfolio in white</div><svg id="dd-chart" class="cmp-chart" preserveAspectRatio="none"></svg></div>
     <div class="panel wide"><div class="panel-head">Equal-weight portfolio <span style="font-weight:500;color:var(--text-faint);font-size:12px">diversification</span></div><div class="panel-sub">A simple 1/9-each basket of these names vs holding any one alone</div><div id="port-panel"></div></div>
-    <div class="panel wide"><div class="panel-head">Advanced risk statistics</div><div class="panel-sub">Downside &amp; tail risk &middot; Sortino, Calmar, 1-day 95% VaR, return skew, % positive days, and up/down capture vs QQQ</div><div id="adv-table"></div></div>`;
-  drawComparison(); drawScatter(); drawRiskReturn(); drawDrawdown(); fillPortPanel(); renderAdvTable();
+    <div class="panel wide"><div class="panel-head">Advanced risk statistics</div><div class="panel-sub">Downside &amp; tail risk &middot; Sortino, Calmar, 1-day 95% VaR, return skew, % positive days, and up/down capture vs QQQ</div><div id="adv-table"></div></div>
+    <div class="panel wide"><div class="panel-head">Efficient frontier <span style="font-weight:500;color:var(--text-faint);font-size:12px">Monte Carlo, 1Y</span></div><div class="panel-sub">~3,500 random long-only portfolios of the nine &middot; colored by Sharpe &middot; &#9670; min-variance &middot; &#9733; max-Sharpe (tangency) &middot; &#9679; equal-weight &middot; dashed = capital allocation line. Illustrative; uses historical inputs.</div><svg id="frontier" class="scatter" preserveAspectRatio="none"></svg></div>
+    <div class="panel wide"><div class="panel-head">Monthly returns <span style="font-weight:500;color:var(--text-faint);font-size:12px">seasonality</span></div><div class="panel-sub">Calendar-month total returns &middot; equal-weight portfolio in the bottom row</div><div class="heat-wrap" id="season"></div></div>`;
+  drawComparison(); drawScatter(); drawRiskReturn(); drawDrawdown(); fillPortPanel(); renderAdvTable(); drawFrontier(); renderSeasonality();
 }
 
 function drawComparison() {
@@ -936,3 +938,56 @@ function boot() {
   setTimeout(refreshLive, 400);
 }
 document.addEventListener("DOMContentLoaded", boot);
+
+
+/* ---- Efficient frontier (Monte Carlo) ---- */
+function drawFrontier() {
+  const F = window.SNAPSHOT.analytics.frontier, svg = document.getElementById("frontier"); if (!svg) return;
+  const S = F.syms, mu = S.map((s) => F.meanRet[s]), cov = S.map((a) => S.map((b) => F.cov[a][b]));
+  const N = 3500, pts = [];
+  for (let k = 0; k < N; k++) {
+    let w = [], sum = 0;
+    for (let i = 0; i < 9; i++) { const xr = -Math.log(Math.random() || 1e-9); w.push(xr); sum += xr; }
+    for (let i = 0; i < 9; i++) w[i] /= sum;
+    let ret = 0, v = 0;
+    for (let i = 0; i < 9; i++) { ret += w[i] * mu[i]; for (let j = 0; j < 9; j++) v += w[i] * w[j] * cov[i][j]; }
+    const vol = Math.sqrt(v) * 100; pts.push({ vol, ret, sh: (ret - F.rf) / vol });
+  }
+  const stocks = S.map((s, i) => ({ sym: s, vol: Math.sqrt(cov[i][i]) * 100, ret: mu[i] }));
+  let ewRet = 0, ewV = 0; for (let i = 0; i < 9; i++) { ewRet += mu[i] / 9; for (let j = 0; j < 9; j++) ewV += cov[i][j] / 81; }
+  const ew = { vol: Math.sqrt(ewV) * 100, ret: ewRet };
+  let mv = pts[0], ms = pts[0]; for (const q of pts) { if (q.vol < mv.vol) mv = q; if (q.sh > ms.sh) ms = q; }
+  const allV = [...pts.map((q) => q.vol), ...stocks.map((s) => s.vol)], allR = [...pts.map((q) => q.ret), ...stocks.map((s) => s.ret)];
+  const W = 1000, H = 380, padL = 52, padR = 16, padT = 16, padB = 42;
+  const xlo = Math.max(0, Math.min(...allV) - 3), xhi = Math.max(...allV) + 4, ylo = Math.min(...allR) - 8, yhi = Math.max(...allR) + 8;
+  const x = (v) => padL + (v - xlo) / ((xhi - xlo) || 1) * (W - padL - padR);
+  const y = (v) => padT + (1 - (v - ylo) / ((yhi - ylo) || 1)) * (H - padT - padB);
+  const shs = pts.map((q) => q.sh), slo = Math.min(...shs), shi = Math.max(...shs);
+  const col = (sh) => { const tt = Math.max(0, Math.min(1, (sh - slo) / ((shi - slo) || 1))); return "rgb(" + Math.round(74 + tt * -52) + "," + Math.round(86 + tt * 113) + "," + Math.round(150 + tt * -18) + ")"; };
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  for (let g = 0; g <= 4; g++) { const gv = xlo + (g / 4) * (xhi - xlo), gx = x(gv); grid += `<line x1="${gx.toFixed(1)}" y1="${padT}" x2="${gx.toFixed(1)}" y2="${H - padB}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${gx.toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  for (let g = 0; g <= 4; g++) { const gv = ylo + (g / 4) * (yhi - ylo), gy = y(gv); grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${padL - 6}" y="${(gy + 4).toFixed(1)}" text-anchor="end" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  grid += `<text x="${((padL + W - padR) / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle" ${LBL}>Annualized volatility &rarr;</text>`;
+  let cloud = "";
+  for (const q of pts) cloud += `<circle cx="${x(q.vol).toFixed(1)}" cy="${y(q.ret).toFixed(1)}" r="1.7" fill="${col(q.sh)}" opacity="0.55"/>`;
+  const sl = (ms.ret - F.rf) / ms.vol;
+  let marks = `<line x1="${x(0).toFixed(1)}" y1="${y(F.rf).toFixed(1)}" x2="${x(xhi).toFixed(1)}" y2="${y(F.rf + sl * xhi).toFixed(1)}" stroke="#ffffff" stroke-width="1.2" stroke-dasharray="5 4" opacity="0.5" vector-effect="non-scaling-stroke"/>`;
+  for (const s of stocks) marks += `<circle cx="${x(s.vol).toFixed(1)}" cy="${y(s.ret).toFixed(1)}" r="3" fill="${BRAND[s.sym]}"/><text x="${x(s.vol).toFixed(1)}" y="${(y(s.ret) - 6).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" style="fill:var(--text-dim)" font-family="'JetBrains Mono',monospace">${s.sym}</text>`;
+  const mk = (pt, glyph, label, c, sz) => `<text x="${x(pt.vol).toFixed(1)}" y="${(y(pt.ret) + sz / 3).toFixed(1)}" text-anchor="middle" font-size="${sz}" fill="${c}">${glyph}</text><text x="${x(pt.vol).toFixed(1)}" y="${(y(pt.ret) - 13).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="700" style="fill:var(--text)" font-family="'JetBrains Mono',monospace">${label}</text>`;
+  marks += mk(mv, "&#9670;", "Min-Var", "#5b8cff", 16) + mk(ms, "&#9733;", "Max-Sharpe", "#16c784", 22) + mk(ew, "&#9679;", "Equal-wt", "#ffffff", 15);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("preserveAspectRatio", "none"); svg.innerHTML = grid + cloud + marks;
+}
+
+/* ---- Monthly returns seasonality ---- */
+function renderSeasonality() {
+  const SE = window.SNAPSHOT.analytics.seasonality, host = document.getElementById("season"); if (!host) return;
+  const order = window.SNAPSHOT.order;
+  const mlab = SE.months.map((m) => new Date(m + "-01T00:00:00").toLocaleDateString("en-US", { month: "short" }));
+  const hc = (v) => { if (v == null) return "var(--surface-2)"; const tt = Math.min(1, Math.abs(v) / 20), a = (0.14 + tt * 0.74).toFixed(2); return v >= 0 ? `rgba(22,199,132,${a})` : `rgba(234,57,67,${a})`; };
+  let h = `<table class="heat"><thead><tr><th class="tk">Ticker</th>${mlab.map((m) => `<th>${m}</th>`).join("")}</tr></thead><tbody>`;
+  for (const s of order) h += `<tr><td class="tk">${logoHTML(s, "t-logo")}${s}</td>${SE.monthly[s].map((v) => `<td style="background:${hc(v)};color:#fff">${v >= 0 ? "+" : ""}${v}</td>`).join("")}</tr>`;
+  h += `<tr><td class="tk" style="font-weight:800">EW Port</td>${SE.port.map((v) => `<td style="background:${hc(v)};color:#fff;font-weight:700">${v >= 0 ? "+" : ""}${v}</td>`).join("")}</tr>`;
+  h += "</tbody></table>";
+  host.innerHTML = h;
+}

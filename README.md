@@ -31,6 +31,8 @@ A cross-sectional, quant-style view of the whole group:
 - **Underwater drawdowns** — each name's decline from its running peak over the year, with the equal-weight portfolio overlaid.
 - **Equal-weight portfolio** — a 1/9-each basket that shows the diversification benefit (volatility well below the average single name), with return, Sharpe, Sortino, beta and max drawdown.
 - **Advanced risk statistics** — Sortino & Calmar ratios, 1-day 95% Value-at-Risk, return skew, % positive days, and up/down capture vs QQQ.
+- **Efficient frontier** — a Monte Carlo of ~3,500 random long-only portfolios of the nine, colored by Sharpe, with the minimum-variance and maximum-Sharpe (tangency) portfolios, the equal-weight point, and a capital allocation line.
+- **Monthly returns (seasonality)** — calendar-month total returns for every name and the equal-weight portfolio.
 
 ## Advanced charting
 
