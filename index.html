@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tech Stock Dashboard</title>
-  <meta name="description" content="A clean, responsive dashboard tracking major technology stocks — prices, daily change, sparklines, and interactive charts." />
+  <meta name="description" content="A professional-grade dashboard tracking major technology stocks — prices, valuation, fundamentals, analyst targets, technicals, financials, and an illustrative outlook." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;&#128200;&lt;/text&gt;&lt;/svg&gt;" />
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -24,7 +24,7 @@
         </div>
         <div class="brand-text">
           <h1>Tech Stock Dashboard</h1>
-          <p>Major technology equities &middot; live with snapshot fallback</p>
+          <p>Prices, fundamentals, analyst targets &amp; technicals &middot; live with snapshot fallback</p>
         </div>
       </div>
       <div class="topbar-actions">
@@ -59,12 +59,14 @@
           <span>Sort</span>
           <select id="sort-select">
             <option value="default">Default order</option>
+            <option value="upsideDesc">Analyst upside &mdash; high</option>
             <option value="changeDesc">% Change &mdash; gainers</option>
             <option value="changeAsc">% Change &mdash; losers</option>
-            <option value="priceDesc">Price (high &rarr; low)</option>
-            <option value="priceAsc">Price (low &rarr; high)</option>
-            <option value="mcDesc">Market cap (high &rarr; low)</option>
-            <option value="volDesc">Volume (high &rarr; low)</option>
+            <option value="fpeAsc">Fwd P/E (low &rarr; high)</option>
+            <option value="pegAsc">PEG (low &rarr; high)</option>
+            <option value="revgDesc">Revenue growth</option>
+            <option value="signalDesc">Technical signal</option>
+            <option value="mcDesc">Market cap</option>
             <option value="alpha">Ticker (A &rarr; Z)</option>
           </select>
         </label>
@@ -75,7 +77,7 @@
           </button>
           <button id="view-table" role="tab" aria-selected="false">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
-            <span>Table</span>
+            <span>Screener</span>
           </button>
         </div>
       </div>
@@ -84,19 +86,23 @@
     <!-- Cards -->
     <main id="cards-view" class="cards-grid" aria-live="polite"></main>
 
-    <!-- Table -->
+    <!-- Screener table -->
     <main id="table-view" class="table-wrap" hidden>
       <table class="stock-table">
         <thead>
           <tr>
             <th data-sort="symbol" class="th-sortable">Ticker</th>
-            <th data-sort="name" class="th-sortable th-name">Company</th>
             <th data-sort="price" class="th-sortable th-num">Price</th>
-            <th data-sort="change" class="th-sortable th-num">Change</th>
-            <th data-sort="changePct" class="th-sortable th-num">% Change</th>
-            <th class="th-num th-spark">30-day</th>
+            <th data-sort="changePct" class="th-sortable th-num">Chg %</th>
+            <th data-sort="fpe" class="th-sortable th-num">Fwd P/E</th>
+            <th data-sort="peg" class="th-sortable th-num">PEG</th>
+            <th data-sort="revg" class="th-sortable th-num">Rev Gr</th>
+            <th data-sort="margin" class="th-sortable th-num">Net Mgn</th>
+            <th data-sort="target" class="th-sortable th-num">Target</th>
+            <th data-sort="upside" class="th-sortable th-num">Upside</th>
+            <th data-sort="rating" class="th-sortable">Rating</th>
+            <th data-sort="signal" class="th-sortable">Signal</th>
             <th data-sort="mc" class="th-sortable th-num">Mkt Cap</th>
-            <th data-sort="vol" class="th-sortable th-num">Volume</th>
           </tr>
         </thead>
         <tbody id="table-body"></tbody>
@@ -106,11 +112,11 @@
     <!-- Footer -->
     <footer class="footer">
       <p id="footer-note"></p>
-      <p class="footer-sub">Built as a static single-page app &middot; data via Yahoo Finance &middot; for informational purposes only, not investment advice.</p>
+      <p class="footer-sub">For informational and educational purposes only &mdash; <strong>not investment advice</strong>. Fundamentals, analyst data &amp; technicals as of Jun 18, 2026. Data via Yahoo Finance.</p>
     </footer>
   </div>
 
-  <!-- Detail modal -->
+  <!-- Detail tear sheet -->
   <div id="detail-overlay" class="overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-symbol">
       <button id="detail-close" class="modal-close" aria-label="Close">
@@ -128,21 +134,19 @@
         <div class="modal-price">
           <div class="modal-price-now" id="d-price"></div>
           <div class="change-pill" id="d-change"></div>
+          <div class="rating-line" id="d-rating"></div>
         </div>
       </div>
 
-      <div class="range-tabs" id="d-range">
-        <button data-range="21">1M</button>
-        <button data-range="32">3M</button>
-        <button data-range="64" class="active">6M</button>
-      </div>
+      <nav class="tabs" id="d-tabs" role="tablist">
+        <button data-tab="overview" class="active" role="tab">Overview</button>
+        <button data-tab="fundamentals" role="tab">Fundamentals</button>
+        <button data-tab="technicals" role="tab">Technicals</button>
+        <button data-tab="analysts" role="tab">Analysts</button>
+        <button data-tab="financials" role="tab">Financials</button>
+      </nav>
 
-      <div class="chart-box">
-        <svg id="d-chart" class="detail-chart" preserveAspectRatio="none"></svg>
-        <div id="d-tooltip" class="chart-tooltip" hidden></div>
-      </div>
-
-      <div class="stat-grid" id="d-stats"></div>
+      <div id="tab-content"></div>
     </div>
   </div>
 

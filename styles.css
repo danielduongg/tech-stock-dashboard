@@ -331,3 +331,123 @@ body {
   .cards-grid { grid-template-columns: 1fr; }
   .brand-text h1 { font-size: 17px; }
 }
+
+/* ============================================================
+   Pro tear-sheet: tabs, metrics, gauges, analyst, financials
+   ============================================================ */
+
+/* Card consensus line */
+.card-analyst {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 2px 0 10px; padding: 8px 10px; border-radius: 9px;
+  background: var(--surface-2); border: 1px solid var(--border-soft); font-size: 12px;
+}
+.card-analyst .ca-left { display: flex; align-items: center; gap: 7px; }
+.card-analyst .ca-up { font-family: var(--mono); font-weight: 600; }
+
+.rating { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; letter-spacing: 0.02em; white-space: nowrap; }
+.rating.strong_buy { color: #0bbf6a; background: rgba(11,191,106,0.14); }
+.rating.buy { color: #16c784; background: var(--green-soft); }
+.rating.hold { color: #f0b429; background: rgba(240,180,41,0.14); }
+.rating.sell, .rating.underperform { color: #ff8a3d; background: rgba(255,138,61,0.14); }
+.rating.strong_sell { color: var(--red); background: var(--red-soft); }
+
+.sig { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; white-space: nowrap; }
+.sig-dot { width: 7px; height: 7px; border-radius: 50%; }
+.sig.bull { color: var(--green); background: var(--green-soft); }
+.sig.bull .sig-dot { background: var(--green); }
+.sig.bear { color: var(--red); background: var(--red-soft); }
+.sig.bear .sig-dot { background: var(--red); }
+.sig.neutral { color: #f0b429; background: rgba(240,180,41,0.14); }
+.sig.neutral .sig-dot { background: #f0b429; }
+
+/* Modal head rating line */
+.rating-line { margin-top: 7px; display: flex; gap: 7px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.rating-line .up-tag { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+
+/* Tabs */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-top: 20px; overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs button {
+  cursor: pointer; border: none; background: transparent; color: var(--text-dim);
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600; padding: 11px 15px;
+  border-bottom: 2px solid transparent; white-space: nowrap; transition: color 0.15s ease, border-color 0.15s ease;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+#tab-content { padding-top: 16px; animation: fade 0.18s ease; }
+
+/* Section + metric grids */
+.ts-section { margin-bottom: 20px; }
+.ts-head { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; color: var(--text-faint); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.ts-head .hint { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-faint); font-size: 11px; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border-soft); border: 1px solid var(--border-soft); border-radius: 13px; overflow: hidden; }
+.metric { background: var(--surface); padding: 12px 14px; }
+.metric .mk { font-size: 11px; color: var(--text-faint); font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.metric .mv { font-size: 16px; font-weight: 700; margin-top: 4px; font-family: var(--mono); }
+.metric .mv.good { color: var(--green); }
+.metric .mv.bad { color: var(--red); }
+.metric .mv.warn { color: #f0b429; }
+.metric .msub { font-size: 10.5px; color: var(--text-faint); margin-top: 2px; }
+
+/* Outlook panel */
+.outlook { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: linear-gradient(180deg, var(--surface-2), var(--surface)); }
+.outlook-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px dashed var(--border-soft); }
+.outlook-row:last-of-type { border-bottom: none; }
+.outlook-row .ol-label { font-size: 12.5px; color: var(--text-dim); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.outlook-row .ol-val { font-family: var(--mono); font-weight: 700; font-size: 14px; text-align: right; }
+.disclaimer { margin-top: 12px; padding: 10px 12px; border-radius: 9px; background: rgba(240,180,41,0.08); border: 1px solid rgba(240,180,41,0.25); font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
+.disclaimer strong { color: #f0b429; }
+
+/* Gauge (RSI etc.) */
+.gauge { margin-top: 8px; }
+.gauge-track { position: relative; height: 8px; border-radius: 99px; background: linear-gradient(90deg, #16c784 0%, #16c784 30%, #2a3346 30%, #2a3346 70%, #ea3943 70%, #ea3943 100%); }
+[data-theme="light"] .gauge-track { background: linear-gradient(90deg, #16c784 0%, #16c784 30%, #dbe2ee 30%, #dbe2ee 70%, #ea3943 70%, #ea3943 100%); }
+.gauge-marker { position: absolute; top: -3px; width: 3px; height: 14px; border-radius: 2px; background: var(--text); box-shadow: 0 0 0 2px var(--surface); transform: translateX(-50%); }
+.gauge-scale { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-faint); margin-top: 5px; font-family: var(--mono); }
+
+/* Analyst distribution bar */
+.dist-bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-soft); }
+.dist-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; min-width: 0; }
+.dist-seg.sb { background: #0bbf6a; }
+.dist-seg.b { background: #16c784; }
+.dist-seg.h { background: #f0b429; }
+.dist-seg.se { background: #ff8a3d; }
+.dist-seg.ss { background: #ea3943; }
+.dist-legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 10px; font-size: 11.5px; color: var(--text-dim); }
+.dist-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.dist-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+/* Price-target range */
+.tgt-range { margin: 14px 0 4px; }
+.tgt-track { position: relative; height: 6px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border-soft); margin: 26px 0 30px; }
+.tgt-fill { position: absolute; top: 0; bottom: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent-soft), var(--accent)); opacity: 0.5; }
+.tgt-pt { position: absolute; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; }
+.tgt-pt .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--surface); }
+.tgt-pt .lbl { position: absolute; font-size: 10px; font-family: var(--mono); white-space: nowrap; color: var(--text-dim); }
+.tgt-pt.low .dot { background: var(--red); } .tgt-pt.high .dot { background: var(--green); }
+.tgt-pt.mean .dot { background: var(--accent); width: 14px; height: 14px; }
+.tgt-pt.cur .dot { background: var(--text); }
+.tgt-pt .lbl.top { bottom: 16px; } .tgt-pt .lbl.bot { top: 16px; }
+
+/* Financials mini chart */
+.fin-chart { width: 100%; height: 170px; display: block; }
+.fin-legend { display: flex; gap: 16px; margin: 4px 0 12px; font-size: 11.5px; color: var(--text-dim); }
+.fin-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.fin-legend i { width: 11px; height: 11px; border-radius: 3px; }
+.fin-table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+.fin-table th, .fin-table td { padding: 8px 10px; font-size: 12.5px; text-align: right; font-family: var(--mono); border-bottom: 1px solid var(--border-soft); }
+.fin-table th:first-child, .fin-table td:first-child { text-align: left; font-family: var(--sans); color: var(--text-dim); }
+.fin-table thead th { color: var(--text-faint); font-weight: 600; font-size: 11px; text-transform: uppercase; }
+.fin-table tbody tr:last-child td { border-bottom: none; }
+
+/* Screener extra cells */
+.td-tag { white-space: nowrap; }
+.up-pos { color: var(--green); } .up-neg { color: var(--red); }
+
+@media (max-width: 720px) {
+  .metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .tabs button { padding: 10px 11px; font-size: 12.5px; }
+}
