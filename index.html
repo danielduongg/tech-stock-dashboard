@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tech Stock Dashboard</title>
+  <meta name="description" content="A clean, responsive dashboard tracking major technology stocks — prices, daily change, sparklines, and interactive charts." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;&#128200;&lt;/text&gt;&lt;/svg&gt;" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 17 9 11 13 15 21 7"></polyline>
+            <polyline points="15 7 21 7 21 13"></polyline>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Tech Stock Dashboard</h1>
+          <p>Major technology equities &middot; live with snapshot fallback</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <div id="status-badge" class="status-badge" title="Data source and freshness">
+          <span class="status-dot"></span>
+          <span id="status-text">Loading&hellip;</span>
+        </div>
+        <button id="refresh-btn" class="icon-btn" title="Refresh live data" aria-label="Refresh live data">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+          </svg>
+        </button>
+        <button id="theme-btn" class="icon-btn" title="Toggle light / dark" aria-label="Toggle theme">
+          <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Market summary strip -->
+    <section class="market-strip" id="market-strip" aria-label="Market summary"></section>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="search" type="search" placeholder="Filter by ticker or company&hellip;" autocomplete="off" spellcheck="false" />
+      </div>
+      <div class="toolbar-right">
+        <label class="sort-wrap">
+          <span>Sort</span>
+          <select id="sort-select">
+            <option value="default">Default order</option>
+            <option value="changeDesc">% Change &mdash; gainers</option>
+            <option value="changeAsc">% Change &mdash; losers</option>
+            <option value="priceDesc">Price (high &rarr; low)</option>
+            <option value="priceAsc">Price (low &rarr; high)</option>
+            <option value="mcDesc">Market cap (high &rarr; low)</option>
+            <option value="volDesc">Volume (high &rarr; low)</option>
+            <option value="alpha">Ticker (A &rarr; Z)</option>
+          </select>
+        </label>
+        <div class="view-toggle" role="tablist" aria-label="View mode">
+          <button id="view-cards" class="active" role="tab" aria-selected="true">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>Cards</span>
+          </button>
+          <button id="view-table" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+            <span>Table</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <main id="cards-view" class="cards-grid" aria-live="polite"></main>
+
+    <!-- Table -->
+    <main id="table-view" class="table-wrap" hidden>
+      <table class="stock-table">
+        <thead>
+          <tr>
+            <th data-sort="symbol" class="th-sortable">Ticker</th>
+            <th data-sort="name" class="th-sortable th-name">Company</th>
+            <th data-sort="price" class="th-sortable th-num">Price</th>
+            <th data-sort="change" class="th-sortable th-num">Change</th>
+            <th data-sort="changePct" class="th-sortable th-num">% Change</th>
+            <th class="th-num th-spark">30-day</th>
+            <th data-sort="mc" class="th-sortable th-num">Mkt Cap</th>
+            <th data-sort="vol" class="th-sortable th-num">Volume</th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p id="footer-note"></p>
+      <p class="footer-sub">Built as a static single-page app &middot; data via Yahoo Finance &middot; for informational purposes only, not investment advice.</p>
+    </footer>
+  </div>
+
+  <!-- Detail modal -->
+  <div id="detail-overlay" class="overlay" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-symbol">
+      <button id="detail-close" class="modal-close" aria-label="Close">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      <div class="modal-head">
+        <div class="modal-id">
+          <div class="modal-logo" id="d-logo"></div>
+          <div>
+            <h2 id="d-symbol"></h2>
+            <p id="d-name"></p>
+            <span class="exch-tag" id="d-exch"></span>
+          </div>
+        </div>
+        <div class="modal-price">
+          <div class="modal-price-now" id="d-price"></div>
+          <div class="change-pill" id="d-change"></div>
+        </div>
+      </div>
+
+      <div class="range-tabs" id="d-range">
+        <button data-range="21">1M</button>
+        <button data-range="32">3M</button>
+        <button data-range="64" class="active">6M</button>
+      </div>
+
+      <div class="chart-box">
+        <svg id="d-chart" class="detail-chart" preserveAspectRatio="none"></svg>
+        <div id="d-tooltip" class="chart-tooltip" hidden></div>
+      </div>
+
+      <div class="stat-grid" id="d-stats"></div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
