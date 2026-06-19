@@ -22,7 +22,8 @@ const state = {
   live: false,
   asOfLabel: window.SNAPSHOT ? window.SNAPSHOT.asOfLabel : "",
   fundAsOf: window.SNAPSHOT ? window.SNAPSHOT.fundamentalsAsOf : "",
-  openSymbol: null, detailTab: "overview", detailRange: 64
+  openSymbol: null, detailTab: "overview", detailRange: 64,
+  chartMode: "line", ov: { sma: true, boll: false, vol: true }, ohlc: {}, cmpHidden: {}
 };
 
 /* ---------- formatting ---------- */
@@ -205,7 +206,12 @@ function renderTable() {
   }).join("");
 }
 
-function render() { renderStrip(); if (state.view === "cards") renderCards(); else renderTable(); }
+function render() {
+  renderStrip();
+  if (state.view === "cards") renderCards();
+  else if (state.view === "table") renderTable();
+  else renderAnalytics();
+}
 
 /* ============================================================
    Detail tear sheet
@@ -248,8 +254,7 @@ function renderTab(s, tab) {
   else if (tab === "analysts") c.innerHTML = tplAnalysts(s);
   else if (tab === "financials") c.innerHTML = tplFinancials(s);
   if (tab === "overview") {
-    document.querySelectorAll("#d-range button").forEach((b) => b.classList.toggle("active", +b.dataset.range === state.detailRange));
-    drawPriceChart(s, state.detailRange);
+    drawChart(s);
     const svg = document.getElementById("d-chart");
     svg.addEventListener("mousemove", onChartMove); svg.addEventListener("mouseleave", onChartLeave);
   }
@@ -266,13 +271,22 @@ function tplOverview(s) {
   sig.push(s.tech.macdHist > 0 ? "MACD positive" : "MACD negative");
   const uc = (s.upside ?? 0) >= 0 ? "up-pos" : "up-neg";
   return `
-    <div class="range-tabs" id="d-range">
-      <button data-range="21">1M</button><button data-range="32">3M</button><button data-range="64" class="active">6M</button>
+    <div class="chart-controls">
+      <div class="range-tabs" id="d-range">
+        <button data-range="21" ${state.detailRange === 21 ? 'class="active"' : ""}>1M</button><button data-range="32" ${state.detailRange === 32 ? 'class="active"' : ""}>3M</button><button data-range="64" ${state.detailRange === 64 ? 'class="active"' : ""}>6M</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="chip chart-type ${state.chartMode === "line" ? "on" : ""}" data-mode="line">Line</button>
+      <button class="chip chart-type ${state.chartMode === "candle" ? "on" : ""}" data-mode="candle">Candles</button>
+      <button class="chip ov-chip ${state.ov.sma ? "on" : ""}" data-ov="sma">SMA 50/200</button>
+      <button class="chip ov-chip ${state.ov.boll ? "on" : ""}" data-ov="boll">Bollinger</button>
+      <button class="chip ov-chip ${state.ov.vol ? "on" : ""}" data-ov="vol">Volume</button>
     </div>
     <div class="chart-box">
       <svg id="d-chart" class="detail-chart" preserveAspectRatio="none"></svg>
       <div id="d-tooltip" class="chart-tooltip" hidden></div>
     </div>
+    <div class="chart-note" id="chart-note"></div>
     <div class="ts-section">
       <div class="ts-head">Outlook <span class="hint">— what the Street &amp; the tape say (not advice)</span></div>
       <div class="outlook">
@@ -612,6 +626,11 @@ function wire() {
   document.getElementById("refresh-btn").addEventListener("click", refreshLive);
   document.getElementById("view-cards").addEventListener("click", () => switchView("cards"));
   document.getElementById("view-table").addEventListener("click", () => switchView("table"));
+  document.getElementById("view-analytics").addEventListener("click", () => switchView("analytics"));
+  document.getElementById("analytics-view").addEventListener("click", (e) => {
+    const lg = e.target.closest(".cmp-legend button");
+    if (lg) { const k = lg.dataset.sym; state.cmpHidden[k] = !state.cmpHidden[k]; lg.classList.toggle("off", !!state.cmpHidden[k]); drawComparison(); }
+  });
   document.getElementById("cards-view").addEventListener("click", (e) => { const c = e.target.closest(".card"); if (c) openDetail(c.dataset.sym); });
   document.getElementById("cards-view").addEventListener("keydown", (e) => { if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("card")) { e.preventDefault(); openDetail(e.target.dataset.sym); } });
   document.getElementById("table-body").addEventListener("click", (e) => { const r = e.target.closest("tr"); if (r && r.dataset.sym) openDetail(r.dataset.sym); });
@@ -630,22 +649,206 @@ function wire() {
     const s = state.stocks.find((x) => x.sym === state.openSymbol); if (s) renderTab(s, b.dataset.tab);
   });
   document.getElementById("tab-content").addEventListener("click", (e) => {
-    const b = e.target.closest("#d-range button"); if (!b) return;
-    document.querySelectorAll("#d-range button").forEach((x) => x.classList.remove("active")); b.classList.add("active");
-    state.detailRange = +b.dataset.range;
-    const s = state.stocks.find((x) => x.sym === state.openSymbol); if (s) drawPriceChart(s, state.detailRange);
+    const s = state.stocks.find((x) => x.sym === state.openSymbol); if (!s) return;
+    const rb = e.target.closest("#d-range button");
+    if (rb) { document.querySelectorAll("#d-range button").forEach((x) => x.classList.remove("active")); rb.classList.add("active"); state.detailRange = +rb.dataset.range; drawChart(s); return; }
+    const ct = e.target.closest(".chart-type");
+    if (ct) { state.chartMode = ct.dataset.mode; document.querySelectorAll(".chart-type").forEach((x) => x.classList.toggle("on", x.dataset.mode === state.chartMode)); drawChart(s); return; }
+    const ov = e.target.closest(".ov-chip");
+    if (ov) { state.ov[ov.dataset.ov] = !state.ov[ov.dataset.ov]; ov.classList.toggle("on", state.ov[ov.dataset.ov]); drawChart(s); return; }
   });
 }
+
+/* ============================================================
+   Advanced chart engine: line / candlestick dispatcher
+   ============================================================ */
+function drawChart(s) {
+  const note = document.getElementById("chart-note");
+  if (state.chartMode === "candle") {
+    const o = state.ohlc[s.sym];
+    if (o) { drawCandles(s, o); if (note) note.textContent = "Daily candlesticks + volume, 50/200-day SMA" + (state.ov.boll ? " and Bollinger(20,2)" : "") + ". Live OHLC via Yahoo Finance."; }
+    else { drawPriceChart(s, state.detailRange); if (note) note.textContent = "Loading candlesticks…"; ensureOHLC(s); }
+  } else {
+    drawPriceChart(s, state.detailRange);
+    if (note) note.textContent = "6-month line with an illustrative trend projection (dashed). Switch to Candles for OHLC, volume & moving averages.";
+  }
+}
+async function ensureOHLC(s) {
+  try {
+    const o = await fetchOHLC(s.sym); state.ohlc[s.sym] = o;
+    if (state.openSymbol === s.sym && state.detailTab === "overview" && state.chartMode === "candle") drawChart(s);
+  } catch (e) {
+    if (state.openSymbol === s.sym && state.chartMode === "candle") {
+      state.chartMode = "line";
+      document.querySelectorAll(".chart-type").forEach((x) => x.classList.toggle("on", x.dataset.mode === "line"));
+      drawPriceChart(s, state.detailRange);
+      const n = document.getElementById("chart-note"); if (n) n.textContent = "Candlesticks need the live data feed (unavailable right now) — showing the snapshot line chart.";
+    }
+  }
+}
+async function fetchOHLC(sym) {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${sym}?range=1y&interval=1d`;
+  for (let p = 0; p < PROXIES.length; p++) {
+    try {
+      const j = await fetchJSON(PROXIES[p](url), 8000);
+      const r = j.chart.result[0], q = r.indicators.quote[0], ts = r.timestamp;
+      const d = [], o = [], h = [], l = [], c = [], v = [];
+      for (let i = 0; i < ts.length; i++) {
+        if (q.close[i] == null || q.open[i] == null) continue;
+        d.push(new Date(ts[i] * 1000).toISOString().slice(0, 10));
+        o.push(q.open[i]); h.push(q.high[i]); l.push(q.low[i]); c.push(q.close[i]); v.push(q.volume[i] || 0);
+      }
+      if (c.length > 30) return { d, o, h, l, c, v };
+    } catch (e) {}
+  }
+  throw new Error("ohlc unavailable");
+}
+function smaArr(c, n) { const out = Array(c.length).fill(null); let sum = 0; for (let i = 0; i < c.length; i++) { sum += c[i]; if (i >= n) sum -= c[i - n]; if (i >= n - 1) out[i] = sum / n; } return out; }
+function bollArr(c, n, k) { const mid = Array(c.length).fill(null), up = Array(c.length).fill(null), lo = Array(c.length).fill(null); for (let i = n - 1; i < c.length; i++) { let m = 0; for (let j = i - n + 1; j <= i; j++) m += c[j]; m /= n; let sd = 0; for (let j = i - n + 1; j <= i; j++) sd += (c[j] - m) ** 2; sd = Math.sqrt(sd / n); mid[i] = m; up[i] = m + k * sd; lo[i] = m - k * sd; } return { mid, up, lo }; }
+
+function drawCandles(s, o) {
+  const W = 1000, H = 300, padL = 8, padR = 60, padT = 12;
+  const dayMap = { 21: 21, 32: 63, 64: 126 };
+  const D = Math.min(o.c.length, dayMap[state.detailRange] || 126);
+  const start = o.c.length - D;
+  const volH = state.ov.vol ? 54 : 0;
+  const priceBot = H - 24 - (volH ? volH + 8 : 0);
+  const sma50 = smaArr(o.c, 50), sma200 = smaArr(o.c, 200), boll = bollArr(o.c, 20, 2);
+  let lo = Infinity, hi = -Infinity;
+  for (let i = start; i < o.c.length; i++) {
+    lo = Math.min(lo, o.l[i]); hi = Math.max(hi, o.h[i]);
+    if (state.ov.sma) { if (sma50[i] != null) { lo = Math.min(lo, sma50[i]); hi = Math.max(hi, sma50[i]); } if (sma200[i] != null) { lo = Math.min(lo, sma200[i]); hi = Math.max(hi, sma200[i]); } }
+    if (state.ov.boll && boll.up[i] != null) { lo = Math.min(lo, boll.lo[i]); hi = Math.max(hi, boll.up[i]); }
+  }
+  const span = (hi - lo) || 1, plotW = W - padL - padR;
+  const x = (i) => padL + ((i - start) + 0.5) / D * plotW;
+  const y = (v) => padT + (1 - (v - lo) / span) * (priceBot - padT);
+  const cw = Math.max(1.4, plotW / D * 0.62);
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  for (let g = 0; g <= 3; g++) { const gy = padT + (g / 3) * (priceBot - padT), gv = hi - (g / 3) * span; grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${W - padR + 4}" y="${(gy + 4).toFixed(1)}" ${LBL}>${fmtPrice(gv)}</text>`; }
+  let bollEl = "";
+  if (state.ov.boll) {
+    let upPts = "", loPts = "";
+    for (let i = start; i < o.c.length; i++) { if (boll.up[i] == null) continue; upPts += `${x(i).toFixed(1)},${y(boll.up[i]).toFixed(1)} `; }
+    for (let i = o.c.length - 1; i >= start; i--) { if (boll.lo[i] == null) continue; loPts += `${x(i).toFixed(1)},${y(boll.lo[i]).toFixed(1)} `; }
+    if (upPts) bollEl = `<polygon points="${upPts}${loPts}" fill="var(--accent)" opacity="0.08"/><polyline points="${upPts}" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.45" vector-effect="non-scaling-stroke"/>`;
+  }
+  let vmax = 0; for (let i = start; i < o.c.length; i++) vmax = Math.max(vmax, o.v[i]);
+  const volBot = H - 22, volTop = priceBot + 8;
+  let candles = "", vols = "";
+  for (let i = start; i < o.c.length; i++) {
+    const up = o.c[i] >= o.o[i], col = up ? "#16c784" : "#ea3943", cx = x(i);
+    candles += `<line x1="${cx.toFixed(1)}" y1="${y(o.h[i]).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${y(o.l[i]).toFixed(1)}" stroke="${col}" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    const yo = y(o.o[i]), yc = y(o.c[i]), top = Math.min(yo, yc), bh = Math.max(1, Math.abs(yc - yo));
+    candles += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${cw.toFixed(1)}" height="${bh.toFixed(1)}" fill="${col}"/>`;
+    if (volH) { const vh = vmax ? (o.v[i] / vmax) * (volBot - volTop) : 0; vols += `<rect x="${(cx - cw / 2).toFixed(1)}" y="${(volBot - vh).toFixed(1)}" width="${cw.toFixed(1)}" height="${vh.toFixed(1)}" fill="${col}" opacity="0.4"/>`; }
+  }
+  let smaEl = "";
+  if (state.ov.sma) {
+    const lineFor = (arr, color) => { let pts = ""; for (let i = start; i < o.c.length; i++) { if (arr[i] == null) continue; pts += `${x(i).toFixed(1)},${y(arr[i]).toFixed(1)} `; } return pts ? `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>` : ""; };
+    smaEl = lineFor(sma50, "#f0b429") + lineFor(sma200, "#5b8cff");
+  }
+  let xlab = "";
+  [start, start + Math.floor(D / 2), o.c.length - 1].forEach((i, k) => { const anc = k === 0 ? "start" : k === 2 ? "end" : "middle"; xlab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anc}" ${LBL}>${fmtShortDate(o.d[i])}</text>`; });
+  const svg = document.getElementById("d-chart"); if (!svg) return;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("preserveAspectRatio", "none");
+  svg.innerHTML = grid + bollEl + vols + candles + smaEl + xlab;
+  detailCtx = null;
+}
+
+/* ============================================================
+   Analytics workspace
+   ============================================================ */
+function heatColor(v) { if (v == null) return "var(--surface-2)"; const t = Math.min(1, Math.abs(v) / 30), a = (0.14 + t * 0.74).toFixed(2); return v >= 0 ? `rgba(22,199,132,${a})` : `rgba(234,57,67,${a})`; }
+function corrColor(v) { const t = Math.max(0, Math.min(1, v)), a = (0.1 + t * 0.82).toFixed(2); return `rgba(91,140,255,${a})`; }
+
+function renderAnalytics() {
+  const A = window.SNAPSHOT.analytics;
+  const host = document.getElementById("analytics-view");
+  if (!A) { host.innerHTML = '<div class="panel wide"><div class="empty">Analytics data unavailable.</div></div>'; return; }
+  const order = window.SNAPSHOT.order;
+  const cols = [["w1", "1W"], ["m1", "1M"], ["m3", "3M"], ["m6", "6M"], ["ytd", "YTD"], ["y1", "1Y"]];
+  let heat = `<table class="heat"><thead><tr><th class="tk">Ticker</th>${cols.map((c) => `<th>${c[1]}</th>`).join("")}</tr></thead><tbody>`;
+  for (const s of order) { const w = A.windows[s]; heat += `<tr><td class="tk">${logoHTML(s, "t-logo")}${s}</td>${cols.map((c) => { const v = w[c[0]]; return `<td style="background:${heatColor(v)};color:#fff">${v == null ? "—" : fmtPctS(v)}</td>`; }).join("")}</tr>`; }
+  heat += "</tbody></table>";
+  const rr = order.map((s) => Object.assign({ s }, A.risk[s])).sort((a, b) => b.sharpe - a.sharpe);
+  let risk = `<table class="fin-table"><thead><tr><th>Ticker</th><th>1Y Ret</th><th>Vol</th><th>Beta</th><th>Max DD</th><th>Sharpe</th><th>ρ QQQ</th></tr></thead><tbody>`;
+  for (const r of rr) risk += `<tr><td>${r.s}</td><td class="${r.ret1y >= 0 ? "t-up" : "t-down"}">${fmtPctS(r.ret1y)}</td><td>${r.vol.toFixed(1)}%</td><td>${r.beta.toFixed(2)}</td><td class="t-down">${r.mdd.toFixed(1)}%</td><td class="${r.sharpe >= 0 ? "t-up" : "t-down"}">${r.sharpe.toFixed(2)}</td><td>${r.corrQQQ.toFixed(2)}</td></tr>`;
+  risk += "</tbody></table>";
+  let corr = `<div class="corr-grid" style="grid-template-columns:46px repeat(${order.length},1fr)"><div class="corr-cell hdr"></div>`;
+  for (const s of order) corr += `<div class="corr-cell hdr">${s.slice(0, 4)}</div>`;
+  for (const a of order) { corr += `<div class="corr-cell hdr" style="justify-self:start">${a}</div>`; for (const b of order) { const v = A.corr[a][b]; corr += `<div class="corr-cell" style="background:${corrColor(v)};color:${v > 0.55 ? "#fff" : "var(--text-dim)"}">${v.toFixed(2)}</div>`; } }
+  corr += `</div><div class="corr-key">Low<span class="bar"></span>High &middot; 1-year daily-return correlation</div>`;
+  const allSyms = [...order, ...A.benchmarks];
+  const legend = allSyms.map((s) => { const bench = A.benchmarks.includes(s); const col = bench ? (s === "QQQ" ? "#8a93a6" : "#aeb6c6") : BRAND[s]; return `<button data-sym="${s}" class="${state.cmpHidden[s] ? "off" : ""} ${bench ? "bench" : ""}"><span class="swatch" style="background:${col}"></span>${s}</button>`; }).join("");
+  host.innerHTML = `
+    <div class="panel wide"><div class="panel-head">Performance heatmap</div><div class="panel-sub">Total return by window, color-coded &middot; as of ${A.asOf}</div><div class="heat-wrap">${heat}</div></div>
+    <div class="panel wide"><div class="panel-head">Relative performance <span style="font-weight:500;color:var(--text-faint);font-size:12px">${A.period}, rebased to 100, log scale</span></div><div class="panel-sub">9 names vs Nasdaq-100 (QQQ) &amp; S&amp;P 500 (SPY) &middot; click a legend chip to toggle a line</div><svg id="cmp-chart" class="cmp-chart" preserveAspectRatio="none"></svg><div class="cmp-legend">${legend}</div></div>
+    <div class="panel"><div class="panel-head">Risk &amp; return <span style="font-weight:500;color:var(--text-faint);font-size:12px">1Y, sorted by Sharpe</span></div><div class="panel-sub">Annualized vol &middot; beta vs QQQ &middot; max drawdown &middot; Sharpe (rf ${A.rf}%)</div>${risk}</div>
+    <div class="panel"><div class="panel-head">Return correlation</div><div class="panel-sub">How closely daily moves track each other (1 = identical)</div>${corr}</div>
+    <div class="panel wide"><div class="panel-head">Valuation vs growth <span style="font-weight:500;color:var(--text-faint);font-size:12px">GARP map</span></div><div class="panel-sub">Forward P/E (x) vs revenue growth (y) &middot; bubble = market cap &middot; lower-right = cheaper &amp; faster-growing. Dashed lines = peer medians.</div><svg id="scatter" class="scatter" preserveAspectRatio="none"></svg></div>`;
+  drawComparison(); drawScatter();
+}
+
+function drawComparison() {
+  const A = window.SNAPSHOT.analytics; const svg = document.getElementById("cmp-chart"); if (!svg) return;
+  const order = [...window.SNAPSHOT.order, ...A.benchmarks];
+  const W = 1000, H = 320, padL = 8, padR = 58, padT = 12, padB = 24;
+  const vis = order.filter((s) => !state.cmpHidden[s]);
+  let lo = Infinity, hi = -Infinity;
+  for (const s of vis) for (const v of A.rebased[s]) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  if (!isFinite(lo)) { svg.innerHTML = ""; return; }
+  lo = Math.max(1, lo * 0.96); hi = hi * 1.04;
+  const llo = Math.log(lo), lhi = Math.log(hi), lspan = (lhi - llo) || 1, n = A.dates.length;
+  const x = (i) => padL + i / (n - 1) * (W - padL - padR);
+  const y = (v) => padT + (1 - (Math.log(v) - llo) / lspan) * (H - padT - padB);
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  [50, 75, 100, 150, 200, 300, 400].filter((t) => t >= lo && t <= hi).forEach((t) => { const gy = y(t); grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${W - padR + 4}" y="${(gy + 4).toFixed(1)}" ${LBL}>${t}</text>`; });
+  grid += `<line x1="${padL}" y1="${y(100).toFixed(1)}" x2="${W - padR}" y2="${y(100).toFixed(1)}" style="stroke:var(--border)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>`;
+  let lines = "";
+  for (const s of vis) { const bench = A.benchmarks.includes(s); const col = bench ? (s === "QQQ" ? "#8a93a6" : "#aeb6c6") : BRAND[s]; let pts = ""; A.rebased[s].forEach((v, i) => pts += `${x(i).toFixed(1)},${y(v).toFixed(1)} `); lines += `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="${bench ? 1.4 : 1.8}" ${bench ? 'stroke-dasharray="4 3"' : ""} vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`; lines += `<text x="${(x(n - 1) + 3).toFixed(1)}" y="${(y(A.rebased[s][n - 1]) + 3).toFixed(1)}" font-size="11" fill="${col}" font-family="'JetBrains Mono',monospace">${s}</text>`; }
+  let xlab = ""; [0, Math.floor((n - 1) / 2), n - 1].forEach((i, k) => { const anc = k === 0 ? "start" : k === 2 ? "end" : "middle"; xlab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anc}" ${LBL}>${fmtShortDate(A.dates[i])}</text>`; });
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = grid + lines + xlab;
+}
+
+function drawScatter() {
+  const svg = document.getElementById("scatter"); if (!svg) return;
+  const W = 1000, H = 360, padL = 52, padR = 16, padT = 16, padB = 40;
+  const pts = state.stocks.map((s) => ({ sym: s.sym, fpe: s.val.fpe, g: s.grow.rev, mc: s.mc })).filter((p) => p.fpe != null && p.g != null);
+  const xs = pts.map((p) => p.fpe), ys = pts.map((p) => p.g);
+  const xlo = Math.max(0, Math.min(...xs) * 0.85), xhi = Math.min(Math.max(...xs) * 1.08, 66), ylo = Math.min(0, Math.min(...ys)) - 4, yhi = Math.max(...ys) * 1.12;
+  const x = (v) => Math.max(padL, Math.min(W - padR, padL + (v - xlo) / ((xhi - xlo) || 1) * (W - padL - padR)));
+  const y = (v) => padT + (1 - (v - ylo) / ((yhi - ylo) || 1)) * (H - padT - padB);
+  const mcMax = Math.max(...pts.map((p) => p.mc)), r = (mc) => 10 + Math.sqrt(mc / mcMax) * 32;
+  const med = (a) => { const s = [...a].sort((m, n) => m - n), i = Math.floor(s.length / 2); return s.length % 2 ? s[i] : (s[i - 1] + s[i]) / 2; };
+  const mx = Math.min(med(xs), 66), my = med(ys);
+  const LBL = `font-size="12" style="fill:var(--text-faint)" font-family="'JetBrains Mono',monospace"`;
+  let grid = "";
+  for (let g = 0; g <= 4; g++) { const gv = xlo + (g / 4) * (xhi - xlo), gx = padL + (g / 4) * (W - padL - padR); grid += `<line x1="${gx.toFixed(1)}" y1="${padT}" x2="${gx.toFixed(1)}" y2="${H - padB}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${gx.toFixed(1)}" y="${H - padB + 16}" text-anchor="middle" ${LBL}>${gv.toFixed(0)}</text>`; }
+  for (let g = 0; g <= 4; g++) { const gv = ylo + (g / 4) * (yhi - ylo), gy = y(gv); grid += `<line x1="${padL}" y1="${gy.toFixed(1)}" x2="${W - padR}" y2="${gy.toFixed(1)}" style="stroke:var(--border-soft)" stroke-width="1" vector-effect="non-scaling-stroke"/><text x="${padL - 6}" y="${(gy + 4).toFixed(1)}" text-anchor="end" ${LBL}>${gv.toFixed(0)}%</text>`; }
+  grid += `<line x1="${x(mx).toFixed(1)}" y1="${padT}" x2="${x(mx).toFixed(1)}" y2="${H - padB}" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="4 4" opacity="0.5" vector-effect="non-scaling-stroke"/>`;
+  grid += `<line x1="${padL}" y1="${y(my).toFixed(1)}" x2="${W - padR}" y2="${y(my).toFixed(1)}" style="stroke:var(--accent)" stroke-width="1" stroke-dasharray="4 4" opacity="0.5" vector-effect="non-scaling-stroke"/>`;
+  grid += `<text x="${((padL + W - padR) / 2).toFixed(1)}" y="${H - 3}" text-anchor="middle" ${LBL}>Forward P/E &rarr;</text>`;
+    let bubbles = "";
+  for (const p of pts) { const col = BRAND[p.sym], cx = x(p.fpe), cy = y(p.g), rr = r(p.mc); bubbles += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${rr.toFixed(1)}" fill="${col}" opacity="0.26"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${col}"/><text x="${cx.toFixed(1)}" y="${(cy - rr - 4).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--text)" font-family="'JetBrains Mono',monospace">${p.sym}</text>`; }
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = grid + bubbles;
+}
+
 function switchView(v) {
   state.view = v;
-  document.getElementById("view-cards").classList.toggle("active", v === "cards");
-  document.getElementById("view-table").classList.toggle("active", v === "table");
+  ["cards", "table", "analytics"].forEach((k) => document.getElementById("view-" + k).classList.toggle("active", v === k));
   document.getElementById("cards-view").hidden = v !== "cards";
   document.getElementById("table-view").hidden = v !== "table";
+  document.getElementById("analytics-view").hidden = v !== "analytics";
+  document.querySelector(".search-wrap").style.visibility = v === "analytics" ? "hidden" : "visible";
+  document.querySelector(".sort-wrap").style.visibility = v === "analytics" ? "hidden" : "visible";
   render();
 }
 
-/* ---------- boot ---------- */
 let booted = false;
 function boot() {
   if (booted) return; booted = true;

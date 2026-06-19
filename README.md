@@ -10,12 +10,27 @@ A professional-grade, single-page dashboard for the major technology stocks — 
 
 Nine names: **AAPL, MSFT, GOOGL, AMZN, META, NVDA, TSLA, AMD, NFLX**.
 
-Two top-level views:
+Three top-level views:
 
 - **Cards** — a clean visual summary: price, daily change, a 6-month sparkline, consensus rating + analyst upside, technical signal, market cap, forward P/E and revenue growth.
 - **Screener** — a sortable, dense table (price, % change, forward P/E, PEG, revenue growth, net margin, analyst target, implied upside, consensus rating, technical signal, market cap).
+- **Analytics** — a quant workspace (see below).
 
 Click any stock to open a full **company tear sheet** with five tabs.
+
+## Analytics workspace
+
+A cross-sectional, quant-style view of the whole group:
+
+- **Performance heatmap** — total return over 1W / 1M / 3M / 6M / YTD / 1Y, color-coded.
+- **Relative performance** — all nine rebased to 100 on a **log scale** against the **Nasdaq-100 (QQQ)** and **S&P 500 (SPY)** benchmarks; click legend chips to isolate lines.
+- **Risk & return** — annualized volatility, **beta vs QQQ**, **max drawdown**, and **Sharpe** (rf 4.5%), sorted by Sharpe.
+- **Return correlation matrix** — 1-year daily-return correlations across all nine.
+- **Valuation vs growth (GARP map)** — forward P/E vs revenue growth, bubble size = market cap, with peer-median crosshairs.
+
+## Advanced charting
+
+In the tear sheet, toggle the price chart between a **line** view (with the illustrative trend projection) and **candlesticks** — daily OHLC with a **volume** sub-panel, **50/200-day moving averages**, and **Bollinger Bands (20, 2)**. Candlestick OHLC is fetched live on demand and falls back to the line chart if the feed is unavailable.
 
 ## The tear sheet — what professional investors look at
 

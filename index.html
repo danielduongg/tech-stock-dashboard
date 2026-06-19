@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tech Stock Dashboard</title>
-  <meta name="description" content="A professional-grade dashboard tracking major technology stocks — prices, valuation, fundamentals, analyst targets, technicals, financials, and an illustrative outlook." />
+  <meta name="description" content="A professional-grade dashboard tracking major technology stocks — prices, valuation, fundamentals, analyst targets, technicals, financials, quant analytics, and an illustrative outlook." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,30 +13,24 @@
 </head>
 <body>
   <div class="app">
-    <!-- Header -->
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 17 9 11 13 15 21 7"></polyline>
-            <polyline points="15 7 21 7 21 13"></polyline>
+            <polyline points="3 17 9 11 13 15 21 7"></polyline><polyline points="15 7 21 7 21 13"></polyline>
           </svg>
         </div>
         <div class="brand-text">
           <h1>Tech Stock Dashboard</h1>
-          <p>Prices, fundamentals, analyst targets &amp; technicals &middot; live with snapshot fallback</p>
+          <p>Prices, fundamentals, analyst targets, technicals &amp; quant analytics &middot; live with snapshot fallback</p>
         </div>
       </div>
       <div class="topbar-actions">
         <div id="status-badge" class="status-badge" title="Data source and freshness">
-          <span class="status-dot"></span>
-          <span id="status-text">Loading&hellip;</span>
+          <span class="status-dot"></span><span id="status-text">Loading&hellip;</span>
         </div>
         <button id="refresh-btn" class="icon-btn" title="Refresh live data" aria-label="Refresh live data">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="23 4 23 10 17 10"></polyline>
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-          </svg>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
         </button>
         <button id="theme-btn" class="icon-btn" title="Toggle light / dark" aria-label="Toggle theme">
           <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -45,10 +39,8 @@
       </div>
     </header>
 
-    <!-- Market summary strip -->
     <section class="market-strip" id="market-strip" aria-label="Market summary"></section>
 
-    <!-- Toolbar -->
     <div class="toolbar">
       <div class="search-wrap">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -79,14 +71,16 @@
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
             <span>Screener</span>
           </button>
+          <button id="view-analytics" role="tab" aria-selected="false">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            <span>Analytics</span>
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- Cards -->
     <main id="cards-view" class="cards-grid" aria-live="polite"></main>
 
-    <!-- Screener table -->
     <main id="table-view" class="table-wrap" hidden>
       <table class="stock-table">
         <thead>
@@ -109,14 +103,14 @@
       </table>
     </main>
 
-    <!-- Footer -->
+    <main id="analytics-view" class="analytics-view" hidden></main>
+
     <footer class="footer">
       <p id="footer-note"></p>
-      <p class="footer-sub">For informational and educational purposes only &mdash; <strong>not investment advice</strong>. Fundamentals, analyst data &amp; technicals as of Jun 18, 2026. Data via Yahoo Finance.</p>
+      <p class="footer-sub">For informational and educational purposes only &mdash; <strong>not investment advice</strong>. Fundamentals, analyst data, technicals &amp; analytics as of Jun 18, 2026. Data via Yahoo Finance.</p>
     </footer>
   </div>
 
-  <!-- Detail tear sheet -->
   <div id="detail-overlay" class="overlay" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-symbol">
       <button id="detail-close" class="modal-close" aria-label="Close">
